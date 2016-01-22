@@ -74,8 +74,37 @@ class Client
   end
 end
 
-client = Client.new
-server = Server.new
-
 Thread.new { Server.new.run }
 Thread.new { Client.new.run }.join
+
+# Outputs:
+# Sending request 0…
+# Received request. Data: "Hello"
+# Received reply 0: [world]
+# Sending request 1…
+# Received request. Data: "Hello"
+# Received reply 1: [world]
+#Sending request 2…
+# Received request. Data: "Hello"
+# Received reply 2: [world]
+# Sending request 3…
+# Received request. Data: "Hello"
+# Received reply 3: [world]
+# Sending request 4…
+# Received request. Data: "Hello"
+# Received reply 4: [world]
+# Sending request 5…
+# Received request. Data: "Hello"
+# Received reply 5: [world]
+# Sending request 6…
+# Received request. Data: "Hello"
+# Received reply 6: [world]
+# Sending request 7…
+# Received request. Data: "Hello"
+# Received reply 7: [world]
+# Sending request 8…
+# Received request. Data: "Hello"
+# Received reply 8: [world]
+# Sending request 9…
+# Received request. Data: "Hello"
+# Received reply 9: [world]
