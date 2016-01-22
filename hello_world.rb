@@ -4,8 +4,10 @@
 #     'hello' | | 'world'
 #             v |
 #         server (REP)
-#
+
 require 'rbczmq'
+
+CONTEXT = ZMQ::Context.new(1)
 
 class Server
   def initialize(address: "tcp://*:5555")
@@ -22,7 +24,7 @@ class Server
   attr_accessor :address
 
   def listen
-    while true do
+    loop do
       request = socket.recv
 
       puts "Received request. Data: #{request.inspect}"
@@ -31,12 +33,8 @@ class Server
     end
   end
 
-  def context
-    @context ||= ZMQ::Context.new(1)
-  end
-
   def socket
-    @socket ||= context.socket(ZMQ::REP)
+    @socket ||= CONTEXT.socket(ZMQ::REP)
   end
 end
 
@@ -65,12 +63,8 @@ class Client
     end
   end
 
-  def context
-    @context ||= ZMQ::Context.new(1)
-  end
-
   def socket
-    @socket ||= context.socket(ZMQ::REQ)
+    @socket ||= CONTEXT.socket(ZMQ::REQ)
   end
 end
 
@@ -84,7 +78,7 @@ Thread.new { Client.new.run }.join
 # Sending request 1…
 # Received request. Data: "Hello"
 # Received reply 1: [world]
-#Sending request 2…
+# Sending request 2…
 # Received request. Data: "Hello"
 # Received reply 2: [world]
 # Sending request 3…
