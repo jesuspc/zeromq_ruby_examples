@@ -48,6 +48,8 @@ class Client
 
   def run
     socket.connect address
+    # Subscribe is mandatory for SUB sockets
+    socket.subscribe 'channel_1'
     request
   end
 
