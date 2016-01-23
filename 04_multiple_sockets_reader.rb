@@ -5,8 +5,8 @@
 should_run = ARGV.pop == 'run'
 
 require 'rbczmq'
-require './basic_pub_sub'
-require './basic_parallel_pipeline'
+require './02_basic_pub_sub'
+require './03_basic_parallel_pipeline'
 
 module MultipleSocketsReader
   class Client
