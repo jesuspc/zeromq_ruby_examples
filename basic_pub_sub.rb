@@ -12,7 +12,7 @@ require 'rbczmq'
 CONTEXT = ZMQ::Context.new(1)
 
 class Server
-  def initialize(address_1: "tcp://*:5556", address_2: 'ipc://weather.ipc')
+  def initialize(address_1: 'tcp://*:5556', address_2: 'ipc://weather.ipc')
     self.address_1 = address_1
     self.address_2 = address_2
   end
@@ -48,7 +48,6 @@ class Client
 
   def run
     socket.connect address
-    socket.subscribe('channel_1')
     request
   end
 
