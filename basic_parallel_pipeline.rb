@@ -16,109 +16,121 @@
 #                         v
 #                       sink (PULL)
 
+should_run = ARGV.pop == 'run'
+
 require 'rbczmq'
 
-CONTEXT = ZMQ::Context.new(1)
+module BasicParallelPipeline
 
-class Ventilator
-  def initialize(address: 'tcp://*:5557')
-    self.address = address
-  end
+  class Ventilator
+    def initialize(context:, address: 'tcp://*:5557')
+      self.context = context
+      self.address = address
+    end
 
-  def run
-    socket.bind address
-    distribute_work_evenly
-  end
+    def run
+      socket.bind address
+      distribute_work_evenly
+    end
 
-  private
+    private
 
-  attr_accessor :address
+    attr_accessor :context, :address
 
-  def distribute_work_evenly
-    # We have to synchronize the start of the batch with all workers being up
-    # and running. The zmq_connect method takes a certain time. So when a set
-    # of workers connect to the ventilator, the first one to successfully
-    # connect will get a whole load of messages in that short time while
-    # the others are also connecting. If you don't synchronize the start of
-    # the batch somehow, the system won't run in parallel at all.
-    sleep 1
+    def distribute_work_evenly
+      # We have to synchronize the start of the batch with all workers being up
+      # and running. The zmq_connect method takes a certain time. So when a set
+      # of workers connect to the ventilator, the first one to successfully
+      # connect will get a whole load of messages in that short time while
+      # the others are also connecting. If you don't synchronize the start of
+      # the batch somehow, the system won't run in parallel at all.
+      sleep 1
 
-    10.times do |i|
-      puts "Ventilating workload #{i}"
-      socket.send "10"
+      10.times do |i|
+        puts "Ventilating workload #{i}"
+        socket.send "10"
+      end
+    end
+
+    def socket
+      @socket ||= context.socket(ZMQ::PUSH)
     end
   end
 
-  def socket
-    @socket ||= CONTEXT.socket(ZMQ::PUSH)
-  end
-end
+  class Worker
+    def initialize(id:, context:, receive_address: 'tcp://localhost:5557',
+                   send_address: 'tcp://localhost:5558')
+      self.id = id
+      self.context = context
+      self.receive_address = receive_address
+      self.send_address = send_address
+    end
 
-class Worker
-  def initialize(id:, receive_address: 'tcp://localhost:5557',
-                 send_address: 'tcp://localhost:5558')
-    self.id = id
-    self.receive_address = receive_address
-    self.send_address = send_address
-  end
+    def run
+      receiver_socket.connect receive_address
+      sender_socket.connect send_address
+      work_and_pipe
+    end
 
-  def run
-    receiver_socket.connect receive_address
-    sender_socket.connect send_address
-    work_and_pipe
-  end
+    private
 
-  private
+    attr_accessor :id, :context, :receive_address, :send_address
 
-  attr_accessor :id, :receive_address, :send_address
+    def work_and_pipe
+      loop do
+        workload = receiver_socket.recv
+        puts "[Worker #{id}] Working for #{workload}s"
+        sender_socket.send 'Finished'
+      end
+    end
 
-  def work_and_pipe
-    loop do
-      workload = receiver_socket.recv
-      puts "[Worker #{id}] Working for #{workload}s"
-      sender_socket.send 'Finished'
+    def receiver_socket
+      @receiver_socket ||= context.socket(ZMQ::PULL)
+    end
+
+    def sender_socket
+      @sender_socket ||= context.socket(ZMQ::PUSH)
     end
   end
 
-  def receiver_socket
-    @receiver_socket ||= CONTEXT.socket(ZMQ::PULL)
-  end
+  class Sink
+    def initialize(context:, address: 'tcp://*:5558')
+      self.context = context
+      self.address = address
+    end
 
-  def sender_socket
-    @sender_socket ||= CONTEXT.socket(ZMQ::PUSH)
-  end
-end
+    def run
+      socket.bind address
+      collect_results_evenly
+    end
 
-class Sink
-  def initialize(address: 'tcp://*:5558')
-    self.address = address
-  end
+    private
 
-  def run
-    socket.bind address
-    collect_results_evenly
-  end
+    def collect_results_evenly
+      10.times do |task_nbr|
+        socket.recv
+        puts "Finished task (#{task_nbr})"
+      end
+    end
 
-  private
+    attr_accessor :context, :address
 
-  def collect_results_evenly
-    10.times do |task_nbr|
-      socket.recv
-      puts "Finished task (#{task_nbr})"
+    def socket
+      @socket ||= context.socket(ZMQ::PULL)
     end
   end
 
-  attr_accessor :address
-
-  def socket
-    @socket ||= CONTEXT.socket(ZMQ::PULL)
+  module Program
+    def self.call(context)
+      Thread.new { Ventilator.new(context: context).run }
+      Thread.new { Worker.new(id: 'A', context: context).run }
+      Thread.new { Worker.new(id: 'B', context: context).run }
+      Thread.new { Sink.new(context: context).run }.join
+    end
   end
 end
 
-Thread.new { Ventilator.new.run }
-Thread.new { Worker.new(id: 'A').run }
-Thread.new { Worker.new(id: 'B').run }
-Thread.new { Sink.new.run }.join
+BasicParallelPipeline::Program.call ZMQ::Context.new(1) if should_run
 
 # Output:
 # Ventilating workload 0
@@ -151,5 +163,3 @@ Thread.new { Sink.new.run }.join
 # Finished task (7)
 # Finished task (8)
 # Finished task (9)
-
-

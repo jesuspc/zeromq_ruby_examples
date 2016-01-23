@@ -7,78 +7,86 @@
 #         v                   v
 #    subscriber (SUB)    subscriber (SUB) - connect
 
+should_run = ARGV.pop == 'run'
+
 require 'rbczmq'
 
-CONTEXT = ZMQ::Context.new(1)
+module BasicPubSub
 
-class Server
-  def initialize(address_1: 'tcp://*:5556', address_2: 'ipc://weather.ipc')
-    self.address_1 = address_1
-    self.address_2 = address_2
-  end
+  class Server
+    def initialize(context:, address_1: 'tcp://*:5556',
+                   address_2: 'ipc://weather.ipc')
+      self.context = context
+      self.address_1 = address_1
+      self.address_2 = address_2
+    end
 
-  def run
-    # Multiple addresses can be binded at the same time. The second one is
-    # not listened by any client in this example.
-    socket.bind address_1
-    socket.bind address_2
-    broadcast
-  end
+    def run
+      # Multiple addresses can be binded at the same time. The second one is
+      # not listened by any client in this example.
+      socket.bind address_1
+      socket.bind address_2
+      broadcast
+    end
 
-  private
+    private
 
-  attr_accessor :address_1, :address_2
+    attr_accessor :context, :address_1, :address_2
 
-  def broadcast
-    loop do
-      socket.send "channel_1 #{rand(1000)}"
-      socket.send 'channel_2 This message is not received by the client'
+    def broadcast
+      loop do
+        socket.send "channel_1 #{rand(1000)}"
+        socket.send 'channel_2 This message is not received by the client'
+      end
+    end
+
+    def socket
+      @socket ||= context.socket(ZMQ::PUB)
     end
   end
 
-  def socket
-    @socket ||= CONTEXT.socket(ZMQ::PUB)
-  end
-end
+  class Client
+    def initialize(context:, address: "tcp://localhost:5556")
+      self.context = context
+      self.address = address
+    end
 
-class Client
-  def initialize(address: "tcp://localhost:5556")
-    self.address = address
-  end
+    def run
+      socket.connect address
+      # Subscribe is mandatory for SUB sockets
+      socket.subscribe 'channel_1'
+      request
+    end
 
-  def run
-    socket.connect address
-    # Subscribe is mandatory for SUB sockets
-    socket.subscribe 'channel_1'
-    request
-  end
+    private
 
-  private
+    attr_accessor :context, :address
 
-  attr_accessor :address
+    def request
+      0.upto(9) do |request_nbr|
+        response = socket.recv
 
-  def request
-    0.upto(9) do |request_nbr|
-      response = socket.recv
+        puts "Received random number #{request_nbr}: [#{response}]"
+      end
+    end
 
-      puts "Received random number #{request_nbr}: [#{response}]"
+    def socket
+      @socket ||= context.socket(ZMQ::SUB)
     end
   end
 
-  def context
-    @context ||= ZMQ::Context.new(1)
-  end
-
-  def socket
-    @socket ||= CONTEXT.socket(ZMQ::SUB)
+  module Program
+    def self.call(context)
+      Thread.new { Server.new(context: context).run }
+      client_1 = Thread.new { Client.new(context: context).run }
+      client_2 = Thread.new { Client.new(context: context).run }
+      client_1.join
+      client_2.join
+    end
   end
 end
 
-Thread.new { Server.new.run }
-client_1 = Thread.new { Client.new.run }
-client_2 = Thread.new { Client.new.run }
-client_1.join
-client_2.join
+BasicPubSub::Program.call ZMQ::Context.new(1) if should_run
 
 # Output:
 # Received random number 0: [channel_1 516]
@@ -101,4 +109,3 @@ client_2.join
 # Received random number 7: [channel_1 256]
 # Received random number 8: [channel_1 486]
 # Received random number 9: [channel_1 728]
-
