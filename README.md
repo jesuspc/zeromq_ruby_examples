@@ -3,7 +3,7 @@
 ## A brief description
 
 Those are example implementations of network topologies using a Ruby wrapper on
-top of CZMQ, a high-level C binding of ZeroMQ.
+top of CZMQ, a high-level C binding of [ZeroMQ](http://zeromq.org).
 
 ## Install
 
