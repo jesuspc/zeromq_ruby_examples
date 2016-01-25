@@ -32,6 +32,7 @@ module MultipleSocketsReader
 
     def work_and_receive
       loop do
+        # We prioritize pub messages over work messages
         message = sub_socket.recv_nonblock
         puts "Received message: #{message}" if message
         work_to_do = worker_socket.recv_nonblock
